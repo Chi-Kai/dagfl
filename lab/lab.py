@@ -53,10 +53,6 @@ class Lab:
     
     #创建创世交易
     def create_genesis(self):
-        import tensorflow as tf
-
-        # Suppress tf warnings
-        tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
         client_model = self.create_client_model(self.config.seed, self.model_config)
 
@@ -149,11 +145,9 @@ class Lab:
                 self.print_validation_results(self.validate(round, dataset, eval_on_fraction), round)
 
     def test_single(self, tangle, client_id, cluster_id, train_data, eval_data, seed, set_to_use, tip_selector):
-        import tensorflow as tf
 
         random.seed(1 + seed)
         np.random.seed(12 + seed)
-        tf.compat.v1.set_random_seed(123 + seed)
 
         client_model = self.create_client_model(seed, self.model_config)
         node = Node(tangle, self.tx_store, tip_selector, client_id, cluster_id, train_data, eval_data, client_model, config=self.node_config)

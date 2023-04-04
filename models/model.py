@@ -1,58 +1,55 @@
 """Interfaces for ClientModel and ServerModel."""
-
 from abc import ABC, abstractmethod
+import torch
+import torch.nn as nn
+import torch.optim as optim
 import numpy as np
-import tensorflow as tf
 
-from .baseline_constants import ACCURACY_KEY
-
-from ..lab.dataset import batch_data
-from .utils.tf_utils import graph_size
+from tangle.lab.dataset import batch_data
+from tangle.models.baseline_constants import ACCURACY_KEY
 
 
-class Model(ABC):
-
+class Model(ABC, nn.Module):
     def __init__(self, seed, lr, optimizer=None):
-        self.lr = lr
+        super(Model, self).__init__()
         self.seed = seed
+        self.lr = lr
         self.batch_seed = 12 + seed
         self._optimizer = optimizer
 
         self.num_epochs = 1
         self.batch_size = 10
 
-        self.graph = tf.Graph()
-        with self.graph.as_default():
-            tf.set_random_seed(123 + self.seed)
-            self.features, self.labels, self.train_op, self.eval_metric_ops, self.conf_matrix, self.loss, *self.additional_params = self.create_model()
-            self.saver = tf.train.Saver()
-        self.sess = tf.Session(graph=self.graph,config=tf.ConfigProto(inter_op_parallelism_threads=1,
-                                        intra_op_parallelism_threads=20,
-                                        use_per_session_threads=True))
+        self.loss_fn = nn.CrossEntropyLoss()
 
-        self.size = graph_size(self.graph)
+        self.additional_params = []
 
-        with self.graph.as_default():
-            self.sess.run(tf.global_variables_initializer())
+        self.graph = None
+        self.sess = None
+        self.saver = None
+        self.size = np.sum([np.prod(p.shape) for p in self.parameters()])
 
         np.random.seed(self.seed)
 
+    def initialize_graph(self):
+        self.optimizer = optim.SGD(self.parameters(), lr=self.lr)
+
     def set_params(self, model_params):
-        with self.graph.as_default():
-            all_vars = tf.trainable_variables()
-            for variable, value in zip(all_vars, model_params):
-                variable.load(value, self.sess)
+       with torch.no_grad():
+            idx = 0
+            for param in self.parameters():
+                # set the parameter values using the provided numpy array
+                param.copy_(torch.from_numpy(model_params[idx]))
+                idx += 1
 
     def get_params(self):
-        with self.graph.as_default():
-            model_params = self.sess.run(tf.trainable_variables())
-        return model_params
+        return [p.detach().numpy() for p in self.parameters()]
 
     @property
     def optimizer(self):
         """Optimizer to be used by the model."""
         if self._optimizer is None:
-            self._optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.lr)
+            self._optimizer = optim.SGD(self.parameters(), lr=self.lr)
 
         return self._optimizer
 
@@ -73,65 +70,53 @@ class Model(ABC):
                 loss: A Tensorflow operation that, when run with features and labels,
                     returns the loss of the model.
         """
-        return None, None, None, None, None, None
+        pass
+
+    def initialize_graph(self):
+        self.features, self.labels, self.fc1, self.fc2 = self.create_model()
+        self.optimizer  # Initialize optimizer
 
     def train(self, data):
-        """
-        Trains the client model.
-
-        Args:
-            data: Dict of the form {'x': [list], 'y': [list]}.
-            num_epochs: Number of epochs to train.
-            batch_size: Size of training batches.
-        Returns:
-            update: List of np.ndarray weights, with each weight array
-                corresponding to a variable in the resulting graph
-        """
-       # print("Training...")
+        self.num_batches = len(data['x']) // self.batch_size
         for _ in range(self.num_epochs):
             self.run_epoch(data, self.batch_size, self.num_batches)
-       # print("Done Training.")
         update = self.get_params()
         return update
 
     def run_epoch(self, data, batch_size, num_batches):
-
         self.batch_seed += 1
-
         for batched_x, batched_y in batch_data(data, batch_size, num_batches, seed=self.batch_seed):
-
             input_data = self.process_x(batched_x)
             target_data = self.process_y(batched_y)
 
-            with self.graph.as_default():
-                self.sess.run(self.train_op,
-                    feed_dict={
-                        self.features: input_data,
-                        self.labels: target_data
-                    })
+            input_tensor = torch.from_numpy(input_data).float()
+            target_tensor = torch.from_numpy(target_data).long()
+
+            self.optimizer.zero_grad()
+            output = self.forward(input_tensor)
+            loss = self.loss_fn(output, target_tensor)
+            loss.backward()
+            self.optimizer.step()
 
     def test(self, data):
-        """
-        Tests the current model on the given data.
-
-        Args:
-            data: dict of the form {'x': [list], 'y': [list]}
-        Returns:
-            dict of metrics that will be recorded by the simulation.
-        """
         x_vecs = self.process_x(data['x'])
         labels = self.process_y(data['y'])
-        # print(f"testing on {len(labels)} data")
-        with self.graph.as_default():
-            tot_acc, conf_matrix, loss, *adds = self.sess.run(
-                [self.eval_metric_ops, self.conf_matrix, self.loss, *self.additional_params],
-                feed_dict={self.features: x_vecs, self.labels: labels}
-            )
-        acc = float(tot_acc) / x_vecs.shape[0]
-        return {ACCURACY_KEY: acc, 'conf_matrix': conf_matrix, 'loss': loss, 'additional_metrics': adds}
+
+        input_tensor = torch.from_numpy(x_vecs).float()
+        target_tensor = torch.from_numpy(labels).long()
+
+        with torch.no_grad():
+            output = self.forward(input_tensor)
+            acc = (output.argmax(dim=1) == target_tensor).sum().item() / len(data['y'])
+            conf_matrix = np.zeros((self.num_classes, self.num_classes), dtype=int)
+            for t, p in zip(target_tensor.view(-1), output.argmax(dim=1).view(-1)):
+                conf_matrix[t.long(), p.long()] += 1
+            loss = self.loss_fn(output, target_tensor)
+
+        return {ACCURACY_KEY: acc, 'conf_matrix': conf_matrix, 'loss': loss.item()}
 
     def close(self):
-        self.sess.close()
+        pass
 
     @abstractmethod
     def process_x(self, raw_x_batch):
@@ -140,42 +125,4 @@ class Model(ABC):
 
     @abstractmethod
     def process_y(self, raw_y_batch):
-        """Pre-processes each batch of labels before being fed to the model."""
         pass
-
-
-class ServerModel:
-    def __init__(self, model):
-        self.model = model
-
-    @property
-    def size(self):
-        return self.model.size
-
-    @property
-    def cur_model(self):
-        return self.model
-
-    def send_to(self, clients):
-        """Copies server model variables to each of the given clients
-
-        Args:
-            clients: list of Client objects
-        """
-        var_vals = {}
-        with self.model.graph.as_default():
-            all_vars = tf.trainable_variables()
-            for v in all_vars:
-                val = self.model.sess.run(v)
-                var_vals[v.name] = val
-        for c in clients:
-            with c.model.graph.as_default():
-                all_vars = tf.trainable_variables()
-                for v in all_vars:
-                    v.load(var_vals[v.name], c.model.sess)
-
-    def save(self, path='checkpoints/model.ckpt'):
-        return self.model.saver.save(self.model.sess, path)
-
-    def close(self):
-        self.model.close()
