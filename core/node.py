@@ -77,7 +77,7 @@ class Node:
         else:
             local = LocalUpdate(args=self.model_config, dataset=self.train_data, idxs=self.train_idxs[self.id])
    
-        state_dict, loss, indd,base_layer = local.train(net=self.model,lr=self.model_config.lr)
+        state_dict, loss, indd = local.train(net=self.model,lr=self.model_config.lr)
         
         return state_dict
 

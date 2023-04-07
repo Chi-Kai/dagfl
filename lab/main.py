@@ -3,7 +3,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from .args import parse_args
 
-from . import Lab, Dataset, TipSelectorFactory
+from . import Lab,TipSelectorFactory
 from .config import LabConfiguration, ModelConfiguration, PoisoningConfiguration, RunConfiguration, NodeConfiguration, TipSelectorConfiguration
 
 def main():
@@ -12,11 +12,5 @@ def main():
 
     tip_selector_factory = TipSelectorFactory(tip_selector_config)
     lab = Lab(tip_selector_factory, lab_config, model_config, node_config, poisoning_config)
-
-    dataset = Dataset(lab_config, model_config)
-  
-    lab.train(run_config.clients_per_round, run_config.start_from_round, run_config.num_rounds, run_config.eval_every, run_config.eval_on_fraction, dataset)
+    lab.train(run_config.start_from_round, run_config.num_rounds, run_config.eval_every)
     #lab.print_validation_results(lab.validate(run_config.num_rounds-1, dataset, run_config.eval_on_fraction), mode='all')
-
-if __name__ == '__main__':
-    main()

@@ -66,7 +66,7 @@ class LocalUpdate(object):
 
     def train(self, net,last=False,lr=0.1):
 
-        if 'femnist' in self.args.dataset:
+        if 'mnist' in self.args.dataset:
             w_glob_keys = [net.weight_keys[i] for i in [0,1,2]]
         if 'cifar' in self.args.dataset:
             w_glob_keys = [net.weight_keys[i] for i in [0,1,3,4]]
@@ -141,5 +141,5 @@ class LocalUpdate(object):
                 break
             
             epoch_loss.append(sum(batch_loss) / len(batch_loss))
-        return net.state_dict(), sum(epoch_loss) / len(epoch_loss), self.indd,w_glob_keys
+        return net.state_dict(), sum(epoch_loss) / len(epoch_loss), self.indd
 

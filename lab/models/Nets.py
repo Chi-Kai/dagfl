@@ -84,8 +84,8 @@ class CNNCifar(nn.Module):
         self.conv2 = nn.Conv2d(64, 64, 5)
         self.fc1 = nn.Linear(64 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 64)
-        self.fc3 = nn.Linear(64,10)
-        self.cls = 10
+        self.fc3 = nn.Linear(64,args.num_classes)
+        self.cls = args.num_classes
 
         self.weight_keys = [['fc1.weight', 'fc1.bias'],
                             ['fc2.weight', 'fc2.bias'],
@@ -151,7 +151,7 @@ class CNN_FEMNIST(nn.Module):
         self.conv2 = nn.Conv2d(4, 12, 5)
         self.fc1 = nn.Linear(12 * 4 * 4, 120)
         self.fc2 = nn.Linear(120, 100)
-        self.fc3 = nn.Linear(100, 62)
+        self.fc3 = nn.Linear(100, args.num_classes)
 
         self.weight_keys = [['fc1.weight', 'fc1.bias'],
                             ['fc2.weight', 'fc2.bias'],
