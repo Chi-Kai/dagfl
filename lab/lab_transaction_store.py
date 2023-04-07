@@ -3,6 +3,7 @@ import io
 import json
 import hashlib
 import numpy as np
+import torch
 
 from ..core import TransactionStore, Transaction, Tangle
 
@@ -34,10 +35,14 @@ class LabTransactionStore(TransactionStore):
         # If the transaction belongs to the pre-existing tangle, load it from there,
         # otherwise we generated it and we have to load it from the destination path
         if os.path.exists(f'{self.src_tx_path}/{tx_id}.npy'):
-            return np.load(f'{self.src_tx_path}/{tx_id}.npy', allow_pickle=True)
+            loaded_dict = np.load(f'{self.src_tx_path}/{tx_id}.npy', allow_pickle=True).item()
+            state_dict = {k: torch.from_numpy(v) if isinstance(v, np.ndarray) else v for k, v in loaded_dict.items()}
+            return state_dict
         else:
-            return np.load(f'{self.dest_tx_path}/{tx_id}.npy', allow_pickle=True)
-
+            loaded_dict = np.load(f'{self.dest_tx_path}/{tx_id}.npy', allow_pickle=True).item()
+            state_dict = {k: torch.from_numpy(v) if isinstance(v, np.ndarray) else v for k, v in loaded_dict.items()}
+            return state_dict
+      
     def compute_transaction_id(self, tx_weights):
         tmpfile = io.BytesIO()
         self._save(tx_weights, tmpfile)

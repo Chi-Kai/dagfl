@@ -27,8 +27,7 @@ class ClientModel(Model):
         self.fc2 = nn.Linear(2048, self.num_classes)
 
         self.batch_seed = 12 + seed
-
-
+        
     def create_model(self):
         features = nn.Parameter(torch.zeros((None, IMAGE_SIZE * IMAGE_SIZE), dtype=torch.float32), requires_grad=False)
         labels = nn.Parameter(torch.zeros(None, dtype=torch.long), requires_grad=False)
@@ -61,3 +60,7 @@ class ClientModel(Model):
     def process_y(self, raw_y_batch):
         return np.array(raw_y_batch)
 
+    def get_params(self):
+        state_dict = self.state_dict()
+        params = {k: v.numpy() for k,v in state_dict.items() if 'fc2' not in k}        
+        return params

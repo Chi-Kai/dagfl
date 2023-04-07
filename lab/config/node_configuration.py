@@ -1,6 +1,5 @@
-from ...core.node import NodeConfiguration as NC
 
-class NodeConfiguration(NC):
+class NodeConfiguration():
 
     def define_args(self, parser):
         parser.add_argument('--num-tips',

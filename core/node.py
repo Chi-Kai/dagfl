@@ -1,3 +1,8 @@
+import numpy as np
+import torch
+from tangle.lab.config.model_configuration import ModelConfiguration
+from tangle.lab.utils.Update import LocalUpdate
+from tangle.lab.utils.test import test_img_local, test_img_local_all
 from .transaction import Transaction
 
 class NodeConfiguration:
@@ -13,23 +18,44 @@ class NodeConfiguration:
         self.publish_if_better_than = publish_if_better_than
 
 class Node:
-    def __init__(self, tangle, tx_store, tip_selector, client_id, cluster_id, train_data={'x' : [],'y' : []}, eval_data={'x' : [],'y' : []}, model=None, config=NodeConfiguration()):
+    def __init__(self, tangle, tx_store, tip_selector,client_id,train_data, eval_data,train_idxs,eval_idxs,model=None, config=NodeConfiguration(),model_config=ModelConfiguration()):
+        
         self.tangle = tangle
         self.tx_store = tx_store
         self.tip_selector = tip_selector
         self._model = model
         self.id = client_id
-        self.cluster_id = cluster_id
         self.train_data = train_data
         self.eval_data = eval_data
+        self.train_idxs = train_idxs
+        self.eval_idxs = eval_idxs
         self.config = config
+        self.model_config = model_config
 
         # Initialize tip selector
         tip_selector.compute_ratings(self)
-
+    
     @staticmethod
-    def average_model_params(*params):
-        return sum(params) / len(params)
+    def average_model_params(params_list):
+        """
+        对模型参数进行平均
+        @param params_list: 包含多个模型参数字典的列表
+        @return: 平均后的模型参数字典
+        """
+        # 计算所有参数的平均值
+        avg_state_dict = {}
+        for key in params_list[0].keys():
+            avg_param = sum(p[key] for p in params_list) / len(params_list)
+            avg_state_dict[key] = avg_param
+
+        # 将平均值赋值给新的 state_dict 中
+        state_dict = {}
+        for key, value in avg_state_dict.items():
+            if isinstance(value, np.ndarray):
+                state_dict[key] = torch.from_numpy(value)
+            else:
+                state_dict[key] = value
+        return state_dict
 
     def train(self, model_params):
         """Trains on self.model using the client's train_data.
@@ -40,16 +66,22 @@ class Node:
         Returns:
             model params of the new model after training
         """
-        self.model.set_params(model_params)
 
-        data = self.train_data
-        self.model.train(data)
-        # update = self.model.train(data)
-        # num_train_samples = len(data['y'])
-        # return num_train_samples, update
-        return self.model.get_params()
+        state_dict = self.model.state_dict()
+        for key in model_params.keys():
+            state_dict[key] = model_params[key]
+        self.model.load_state_dict(state_dict)
+        
+        if 'femnist' in self.model_config.dataset or 'sent140' in self.model_config.dataset:
+            local = LocalUpdate(args=self.model_config, dataset=self.train_data[list(self.train_data.keys())[self.id]], idxs=self.train_idxs[self.id])
+        else:
+            local = LocalUpdate(args=self.model_config, dataset=self.train_data, idxs=self.train_idxs[self.id])
+   
+        state_dict, loss, indd,base_layer = local.train(net=self.model,lr=self.model_config.lr)
+        
+        return state_dict
 
-    def test(self, model_params, set_to_use='test', only_test_on_first_1000=False):
+    def test(self, model_params):
         """Tests self.model on self.test_data.
 
         Args:
@@ -58,19 +90,19 @@ class Node:
         Returns:
             dict of metrics returned by the model.
         """
-        self.model.set_params(model_params)
-
-        assert set_to_use in ['train', 'test', 'val']
-        if set_to_use == 'train':
-            data = self.train_data
-        elif set_to_use == 'test' or set_to_use == 'val':
-            data = self.eval_data
-        if(only_test_on_first_1000):
-            data = {'x': data['x'][:1000], 'y': data['y'][:1000]}
+        state_dict = self.model.state_dict()
+        for key in model_params.keys():
+            state_dict[key] = model_params[key]
+        self.model.load_state_dict(state_dict)
+        if 'femnist' in self.model_config.dataset or 'sent140' in self.model_config.dataset:
+            a, b =  test_img_local(self.model, self.eval_data, self.model_config,idx=self.eval_idxs[self.id])
+        else:
+            a, b =  test_img_local(self.model, self.eval_data, self.model_config,idxs=self.eval_idxs[self.id])
         # begin = time.time()
-        metrics = self.model.test(data)
+        #metrics = self.model.test(data)
+        #metrics = test_img_local(self.model, data, args,self.eval_idxs)
         # print(f'Testing took: {time.time()-begin}')
-        return metrics
+        return {'accuracy': a, 'loss': b}
 
     @property
     def num_test_samples(self):
@@ -222,12 +254,12 @@ class Node:
         # Here: simple unweighted average
         # 将两个交易权重进行平均，然后训练，在本地测试，如果测试结果比参考结果好，则发布交易。
         tx_weights = [self.tx_store.load_transaction_weights(tip.id) for tip in tips]
-
-        averaged_params = Node.average_model_params(*tx_weights)
-        averaged_model_metrics = self.test(averaged_params, 'test')
+        #print("tx_weights", tx_weights)
+        averaged_params = Node.average_model_params(tx_weights)
+        averaged_model_metrics = self.test(averaged_params)
 
         trained_params = self.train(averaged_params)
-        trained_model_metrics = self.test(trained_params, 'test')
+        trained_model_metrics = self.test(trained_params)
 
         transaction = None
         # 如果设为 REFERENCE，则需要与基准指标进行比较；如果设为 PARENTS，则需要与该交易的父交易进行比较。
@@ -246,17 +278,16 @@ class Node:
         else:
             #print("publish if better than parents")
             if trained_model_metrics['loss'] < averaged_model_metrics['loss']:
-                #print("i'll publish!")
+                print("{} publish!".format(self.id))
                 transaction = Transaction(parents=set([tip.id for tip in tips]))
 
         if transaction is not None:
-            transaction.add_metadata('issuer', self.id)
+            transaction.add_metadata('issuer', int(self.id))
             transaction.add_metadata('issuer_data_size', len(self.train_data))
-            transaction.add_metadata('clusterId', self.cluster_id)
             transaction.add_metadata('loss', float(trained_model_metrics['loss']))
             transaction.add_metadata('accuracy', trained_model_metrics['accuracy'])
             transaction.add_metadata('averaged_loss', float(averaged_model_metrics['loss']))
             transaction.add_metadata('averaged_accuracy', averaged_model_metrics['accuracy'])
             transaction.add_metadata('trace', self.tip_selector.trace)
 
-        return transaction, trained_params
+        return transaction, trained_params,self.model.get_params()

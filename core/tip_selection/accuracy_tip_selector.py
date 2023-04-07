@@ -41,7 +41,7 @@ class AccuracyTipSelector(TipSelector):
         txs = self._get_transactions_to_compute(tx)
 
         for tx_id in txs:
-            rating[tx_id] = node.test(node.tx_store.load_transaction_weights(tx_id), 'train', True)[ACCURACY_KEY]
+            rating[tx_id] = node.test(node.tx_store.load_transaction_weights(tx_id))[ACCURACY_KEY]
 
         # We (currently) do not care about the future-set-size-based rating
         # future_set_cache = {}

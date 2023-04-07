@@ -11,6 +11,7 @@ class Dataset:
         self.clients, self.train_data, self.test_data = self.setup_clients(model_config.limit_clients)
 
     def setup_clients(self, limit_clients):
+
         eval_set = 'test' if not self.lab_config.use_val_set else 'val'
         train_data_dir = os.path.join(self.lab_config.model_data_dir, 'train')
         test_data_dir = os.path.join(self.lab_config.model_data_dir, eval_set)
