@@ -1,8 +1,6 @@
 from tangle.core.tip_selection.tip_selector import TipSelector
 from .accuracy_tip_selector import AccuracyTipSelector, AccuracyTipSelectorSettings
 
-from ...models.baseline_constants import ACCURACY_KEY
-
 class LazyAccuracyTipSelector(AccuracyTipSelector):
     def __init__(self, tangle, tip_selection_settings, particle_settings):
         super().__init__(tangle, tip_selection_settings, particle_settings)

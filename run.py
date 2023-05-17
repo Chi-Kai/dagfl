@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 
-from tangle.analysis import TangleAnalysator
+#from tangle.analysis import TangleAnalysator
 
 from sklearn.model_selection import ParameterGrid
 
@@ -56,6 +56,7 @@ params = {
     'poison_type': ['disabled'],
     'poison_fraction': [0],
     'poison_from': [0],
+    'poison_num': [2],
     
 }
 
@@ -179,7 +180,7 @@ def run_and_document_experiments(args, experiments_dir, setup_filename, console_
             '--poison-fraction %s ' \
             '--poison-from %s ' \
             '--tangle-dir %s ' \
-            ''
+            '--poison_num %s ' 
         parameters = (
             p['dataset'],
             p['datadir'],
@@ -213,6 +214,7 @@ def run_and_document_experiments(args, experiments_dir, setup_filename, console_
             p['poison_fraction'],
             p['poison_from'],
             experiment_folder + '/tangle_data',
+            p['poison_num']
         )
         command = command.strip() % parameters
 

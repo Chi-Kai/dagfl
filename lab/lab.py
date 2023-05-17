@@ -11,7 +11,6 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 
 from tangle.lab.utils.test import test_img_local_all
-from ..models.baseline_constants import MODEL_PARAMS, ACCURACY_KEY
 from ..core import Tangle, Transaction, Node, MaliciousNode, PoisonType
 from ..core.tip_selection import TipSelector
 from .lab_transaction_store import LabTransactionStore
@@ -188,9 +187,21 @@ class Lab:
             else:
 
                 m = max(int(self.model_config.frac * self.model_config.num_users), 1)
-                clients = random.sample(range(self.model_config.num_users), k=m)       
+                clients = random.sample(range(self.model_config.num_users), k=m)   
 
-                print(f"Clients this round: {clients}")
+                #选择n个客户端作为投毒客户端
+                idxs_users_poison = np.random.choice(clients,self.model_config.poison_num, replace=False)
+                # 将这两个客户端的训练集中的数据标签进行替换
+                for idx in idxs_users_poison:
+                    dict_users = self.train_dict[idx]
+                #根据idxs获得对应的标签
+                #将每个客户端的标签替换为6
+                for i in dict_users:
+                    # 如果这个客户端的标签是3，那么就替换为6
+                    if self.train_data.targets[i] in [3,7,9]:
+                        self.train_data.targets[i] = 6
+                
+                print(f"Clients this round: {clients}  Poisoning clients:{idxs_users_poison}")
 
                 for tx in self.create_node_transactions(tangle, round, clients):
                     if tx is not None:
@@ -208,7 +219,7 @@ class Lab:
             self.tx_store.save_tangle(tangle, round)
         
         accs_dir = './save/'
-        accs_csv = './save/acc_'+self.model_config.model+'_'+self.model_config.dataset+'.csv' 
+        accs_csv = './save/acc_p'+str(self.model_config.poison_num)+'_'+self.model_config.model+'_'+self.model_config.dataset+'_'+self.model_config.partition+'.csv' 
         if not os.path.exists(accs_dir):
             os.makedirs(accs_dir)
         accs = np.array(accs)

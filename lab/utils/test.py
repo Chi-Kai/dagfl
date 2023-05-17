@@ -43,7 +43,8 @@ def test_img_local(net_g, dataset, args,idx=None,indd=None, user_idx=-1, idxs=No
     net_g.eval()
     test_loss = 0
     correct = 0
-
+    device = torch.device('cuda:0' if torch.cuda.is_available()else 'cpu')
+    net_g.to(device)
     # put LEAF data into proper format
     if 'femnist' in args.dataset:
         leaf=True
@@ -67,6 +68,7 @@ def test_img_local(net_g, dataset, args,idx=None,indd=None, user_idx=-1, idxs=No
         hidden_train = net_g.init_hidden(args.local_bs)
     count = 0
     for idx, (data, target) in enumerate(data_loader):
+        data, target = data.to(device), target.to(device)
         if 'sent140' in args.dataset:
             input_data, target_data = process_x(data, indd), process_y(target, indd)
             if args.local_bs != 1 and input_data.shape[0] != args.local_bs:

@@ -65,7 +65,8 @@ class LocalUpdate(object):
         self.idxs=idxs
 
     def train(self, net,last=False,lr=0.1):
-
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        net.to(device)
         if 'mnist' in self.args.dataset:
             w_glob_keys = [net.weight_keys[i] for i in [0,1,2]]
         if 'cifar' in self.args.dataset:
@@ -93,7 +94,7 @@ class LocalUpdate(object):
 
         for iter in range(local_eps):
             done = False
-
+          
             # for FedRep, first do local epochs for the head
             if iter < head_eps :
                 for name, param in net.named_parameters():
@@ -112,6 +113,7 @@ class LocalUpdate(object):
 
             batch_loss = []
             for batch_idx, (images, labels) in enumerate(self.ldr_train):
+                images, labels = images.to(device), labels.to(device)
                 if 'sent140' in self.args.dataset:
                     input_data, target_data = process_x(images, self.indd), process_y(labels,self.indd)
                     if self.args.local_bs != 1 and input_data.shape[0] != self.args.local_bs:

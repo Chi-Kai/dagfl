@@ -36,7 +36,7 @@ class ModelConfiguration:
                         required=False)
         parser.add_argument('--partition', 
                             type=str, 
-                            default='noniid-#label2', 
+                            default='homo', 
                             help='the data partitioning strategy')
         parser.add_argument('--beta', 
                             type=float, 
@@ -70,6 +70,10 @@ class ModelConfiguration:
                             type=int, 
                             default=10, 
                             help="number of classes")
+        parser.add_argument('--poison_num',
+                            type=int, 
+                            default=0, 
+                            help="number of malicious nodes")
 
     def parse(self, args):
         self.dataset = args.dataset
@@ -85,3 +89,4 @@ class ModelConfiguration:
         self.local_updates = args.local_updates
         self.local_rep_ep = args.local_rep_ep
         self.num_classes = args.num_classes
+        self.poison_num = args.poison_num

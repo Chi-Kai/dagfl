@@ -2,7 +2,6 @@ from enum import Enum
 
 from .tip_selector import TipSelector, TipSelectorSettings
 
-from ...models.baseline_constants import ACCURACY_KEY
 
 # Adopted from https://docs.iota.org/docs/node-software/0.1/iri/references/iri-configuration-options
 
@@ -41,7 +40,7 @@ class AccuracyTipSelector(TipSelector):
         txs = self._get_transactions_to_compute(tx)
 
         for tx_id in txs:
-            rating[tx_id] = node.test(node.tx_store.load_transaction_weights(tx_id))[ACCURACY_KEY]
+            rating[tx_id] = node.test(node.tx_store.load_transaction_weights(tx_id))['accuracy']
 
         # We (currently) do not care about the future-set-size-based rating
         # future_set_cache = {}

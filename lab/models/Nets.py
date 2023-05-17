@@ -73,7 +73,7 @@ class CNNMnist(nn.Module):
 
     def get_params(self):
         state_dict = self.state_dict()
-        params = {k: v.numpy() for k,v in state_dict.items() if 'conv' not in k}        
+        params = {k: v.cpu().numpy() for k,v in state_dict.items() if 'conv' not in k}        
         return params
 
 class CNNCifar(nn.Module):
@@ -105,7 +105,7 @@ class CNNCifar(nn.Module):
     
     def get_params(self):
         state_dict = self.state_dict()
-        params = {k: v.numpy() for k,v in state_dict.items() if 'fc3' not in k}        
+        params = {k: v.cpu().numpy() for k,v in state_dict.items() if 'fc3' not in k}        
         return params
 
 
